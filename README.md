@@ -91,8 +91,8 @@ Review tool calls before allowing changes or deletion.
 
 Dates use `YYYY-MM-DD`; months use `YYYY-MM`. Amounts must be positive with at
 most two decimal places. Categories are trimmed and normalized to lowercase
-using Unicode case folding. All amounts are assumed to use the same currency;
-the server does not convert or track currencies.
+using Unicode case folding. The web app displays amounts as Indian rupees (INR).
+Existing values are not converted; the server does not convert or track currencies.
 
 ## Storage and design
 
