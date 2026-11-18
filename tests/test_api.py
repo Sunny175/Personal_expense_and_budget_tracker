@@ -19,17 +19,28 @@ class ApiTests(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_expense_and_budget_workflow(self):
-        budget = self.client.put("/api/budgets", json={"month": "2026-11", "category": "Food", "amount": "100.00"})
+        budget = self.client.put("/api/budgets", json={"month": "2026-11", "category": "Food", "amount": "1000.00"})
         self.assertEqual(budget.status_code, 200)
-        expense = self.client.post("/api/expenses", json={"amount": "12.50", "category": "Food", "expense_date": "2026-11-18", "description": "Lunch"})
+        self.assertEqual(budget.json(), {"month": "2026-11", "category": "food", "amount": "1000.00"})
+        expense = self.client.post("/api/expenses", json={"amount": "150.50", "category": "Food", "expense_date": "2026-11-18", "description": "Lunch"})
         self.assertEqual(expense.status_code, 201)
-        self.assertEqual(len(self.client.get("/api/expenses", params={"month": "2026-11"}).json()), 1)
-        summary = self.client.get("/api/summary", params={"month": "2026-11"}).json()
-        self.assertEqual(summary["total_spent"], "12.50")
-        self.assertEqual(summary["categories"][0]["remaining"], "87.50")
         expense_id = expense.json()["id"]
-        self.assertEqual(self.client.delete(f"/api/expenses/{expense_id}").status_code, 200)
+        self.assertEqual(expense.json(), {"id": expense_id, "date": "2026-11-18", "category": "food", "amount": "150.50", "description": "Lunch"})
+        self.assertEqual(self.client.get("/api/expenses", params={"month": "2026-11", "category": "FOOD"}).json(), [expense.json()])
+        summary = self.client.get("/api/summary", params={"month": "2026-11"}).json()
+        self.assertEqual(summary, {"month": "2026-11", "total_spent": "150.50", "categories": [{"category": "food", "spent": "150.50", "budget": "1000.00", "remaining": "849.50", "over_budget": False}]})
+        deleted = self.client.delete(f"/api/expenses/{expense_id}")
+        self.assertEqual(deleted.status_code, 200)
+        self.assertEqual(deleted.json(), {"id": expense_id, "deleted": True})
         self.assertEqual(self.client.delete(f"/api/expenses/{expense_id}").status_code, 404)
+
+    def test_openapi_documents_all_operations(self):
+        paths = self.client.get("/openapi.json").json()["paths"]
+        operations = [(path, method, operation) for path, methods in paths.items() for method, operation in methods.items()]
+        self.assertEqual(len(operations), 5)
+        for path, method, operation in operations:
+            with self.subTest(path=path, method=method):
+                self.assertTrue(operation.get("description"))
 
     def test_invalid_inputs(self):
         self.assertEqual(self.client.get("/api/summary", params={"month": "invalid"}).status_code, 400)

@@ -15,6 +15,7 @@ mcp = FastMCP("Personal Expense and Budget Tracker")
 
 @contextmanager
 def database() -> Iterator[sqlite3.Connection]:
+    """Open the configured SQLite database, initialize its tables, and commit changes."""
     db_path = Path(
         os.environ.get("EXPENSE_TRACKER_DB", str(Path.home() / ".expense-tracker" / "expenses.db"))
     ).expanduser()
@@ -46,6 +47,7 @@ def database() -> Iterator[sqlite3.Connection]:
 
 
 def parse_amount(amount: str) -> int:
+    """Validate a positive decimal amount and return it in integer cents."""
     try:
         value = Decimal(amount)
         exponent = value.as_tuple().exponent
@@ -64,18 +66,21 @@ def parse_amount(amount: str) -> int:
 
 
 def format_amount(cents: int) -> str:
+    """Format signed integer cents as a two-decimal amount string."""
     sign = "-" if cents < 0 else ""
     cents = abs(cents)
     return f"{sign}{cents // 100}.{cents % 100:02d}"
 
 
 def validate_month(month: str) -> str:
+    """Return a valid YYYY-MM month or raise ValueError."""
     if not re.fullmatch(r"[0-9]{4}-(0[1-9]|1[0-2])", month) or month.startswith("0000-"):
         raise ValueError("Month must be in YYYY-MM format.")
     return month
 
 
 def validate_category(category: str) -> str:
+    """Trim and case-fold a nonempty category or raise ValueError."""
     category = category.strip()
     if not category:
         raise ValueError("Category cannot be empty.")
