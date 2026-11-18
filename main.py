@@ -48,7 +48,14 @@ def database() -> Iterator[sqlite3.Connection]:
 def parse_amount(amount: str) -> int:
     try:
         value = Decimal(amount)
-        if not value.is_finite() or value <= 0 or value > 90_000_000_000_000 or value.as_tuple().exponent < -2:
+        exponent = value.as_tuple().exponent
+        if (
+            not value.is_finite()
+            or not isinstance(exponent, int)
+            or value <= 0
+            or value > 90_000_000_000_000
+            or exponent < -2
+        ):
             raise ValueError
         cents = value * 100
         return int(cents)
