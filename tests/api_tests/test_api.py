@@ -5,8 +5,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from fastapi import Header
 
 from api import app
+from tracker.api.auth import require_owner
 
 
 class ApiTests(unittest.TestCase):
@@ -16,7 +18,24 @@ class ApiTests(unittest.TestCase):
         environment = patch.dict(os.environ, {"EXPENSE_TRACKER_DB": str(Path(directory.name) / "test.db")})
         environment.start()
         self.addCleanup(environment.stop)
+        def test_owner(x_test_user: str = Header(default="alice")) -> str:
+            return x_test_user
+        app.dependency_overrides[require_owner] = test_owner
+        self.addCleanup(app.dependency_overrides.clear)
         self.client = TestClient(app)
+
+    def test_users_are_isolated(self):
+        created = self.client.post("/api/expenses", json={"amount": "5", "category": "Food"}).json()
+        self.client.put("/api/budgets", json={"month": "2026-11", "category": "Food", "amount": "100"})
+        bob = {"X-Test-User": "bob"}
+        self.client.put("/api/budgets", headers=bob, json={"month": "2026-11", "category": "Food", "amount": "50"})
+        self.assertEqual(self.client.get("/api/expenses", headers=bob).json(), [])
+        self.assertEqual(self.client.delete(f"/api/expenses/{created['id']}", headers=bob).status_code, 404)
+        self.assertEqual(self.client.put(f"/api/expenses/{created['id']}", headers=bob, json={
+            "amount": "1", "category": "Food", "expense_date": "2026-11-01"
+        }).status_code, 404)
+        self.assertEqual(self.client.get("/api/summary?month=2026-11", headers=bob).json()["categories"][0]["budget"], "50.00")
+        self.assertEqual(self.client.get("/api/summary?month=2026-11").json()["categories"][0]["budget"], "100.00")
 
     def test_expense_and_budget_workflow(self):
         budget = self.client.put("/api/budgets", json={"month": "2026-11", "category": "Food", "amount": "1000.00"})

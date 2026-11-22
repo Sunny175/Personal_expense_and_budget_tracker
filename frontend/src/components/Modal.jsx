@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { request } from '../api/client'
+import { useRequest } from '../api/client'
 import { today } from '../utils/format'
 
 const suggestions = ['Food & dining', 'Groceries', 'Transport', 'Shopping', 'Home', 'Health', 'Entertainment', 'Subscriptions', 'Other']
 
 export default function Modal({ type, month, category, expense, onClose, onSaved }) {
+  const request = useRequest()
   const isExpense = type === 'expense'
   const isEditing = isExpense && !!expense
   const [form, setForm] = useState({

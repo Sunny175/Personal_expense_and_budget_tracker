@@ -1,8 +1,8 @@
 # Expense & Budget Tracker
 
-A local expense and budget tracker with a React frontend, a FastAPI backend,
-and a standalone FastMCP 2.x server. Both Python servers use the same SQLite
-database. The web app displays amounts in Indian rupees (INR).
+A local expense and budget tracker with a React frontend, Auth0 sign-in,
+FastAPI and SQLite. The web app displays amounts in Indian rupees (INR).
+MCP is temporarily disabled until authenticated MCP support is implemented.
 
 ## Project flow
 
@@ -14,15 +14,14 @@ project layout, and data flow.
 - `tracker/core/`: shared validation and expense and budget operations.
 - `tracker/storage/`: SQLite connection and queries.
 - `tracker/api/`: FastAPI application and HTTP input validation.
-- `tracker/mcp_server/`: standalone MCP server and tool registration.
+- `tracker/mcp_server/`: disabled MCP entry point.
 - `frontend/src/`: React pages, reusable components, and HTTP helpers.
 - `frontend/tests/`: frontend trend tests.
 - `tests/`: API, tracker, and MCP integration tests.
 - `docs/`: architecture guide and the original flow chart.
 
-The API and MCP server are separate entry points that share the same core and
-SQLite database. The original `api.py` and `main.py` entry points remain
-available for existing configurations.
+`api.py` remains a compatibility entry point for the API. `main.py` fails
+closed rather than starting the former anonymous MCP server.
 
 ## Set up with UV
 
@@ -46,9 +45,37 @@ Keep `pyproject.toml` and `uv.lock` in version control, but not `.venv`.
 ## Web application
 
 The React frontend lives in `frontend/` and talks only to the FastAPI HTTP
-endpoints. FastAPI and the MCP server use the same local SQLite database. Request
-bodies are validated with Pydantic before the existing tracker operations run.
-Node.js 20.19+ or 22.12+ is required for the frontend.
+endpoints. Request bodies are validated with Pydantic. Node.js 20.19+ or 22.12+
+is required for the frontend.
+
+### Configure Auth0
+
+1. Create an Auth0 Single Page Application and an API signed with RS256.
+   The API identifier is the audience (for example `https://expense-tracker-api`).
+2. Set the application's Allowed Callback URLs, Allowed Logout URLs, and
+   Allowed Web Origins to `http://localhost:5173`.
+3. In the API's **Permissions** tab, add `read:expenses` and `write:expenses`.
+   If API RBAC is enabled, assign both permissions to each user who needs
+   access. Auth0 must include the permissions in the access token's `scope`.
+4. Create `frontend/.env.local` locally with the following values:
+
+   ```text
+   VITE_AUTH0_DOMAIN=your-tenant.auth0.com
+   VITE_AUTH0_CLIENT_ID=your-spa-client-id
+   VITE_AUTH0_AUDIENCE=https://expense-tracker-api
+   ```
+
+   Use your actual domain, client ID, and API identifier. Vite exposes these
+   values to the browser: never put a client secret or access token in this file.
+5. In the PowerShell terminal that starts the API, configure the same domain and
+   audience (the domain has no `https://` prefix or trailing slash):
+
+   ```powershell
+   $env:AUTH0_DOMAIN = "your-tenant.auth0.com"
+   $env:AUTH0_AUDIENCE = "https://expense-tracker-api"
+   ```
+
+The `.env.local` file is ignored by Git. Never commit credentials or tokens.
 
 Run the API from the project directory:
 
@@ -66,8 +93,9 @@ npm --prefix frontend run dev
 
 Open the URL printed by Vite (normally `http://localhost:5173`). During
 development Vite forwards `/api` requests to `http://127.0.0.1:8000`.
-The API documentation is available at `http://127.0.0.1:8000/docs`. This is a
-local app without authentication; do not expose the API publicly.
+The API documentation is available at `http://127.0.0.1:8000/docs`. API
+requests require an Auth0 access token for this API. This is a local development
+setup; do not expose the servers publicly.
 Use the edit action beside a transaction to change its details. The overview's
 monthly spending chart shows the selected month and the preceding five months;
 months without expenses are shown as zero. The **Your Workspace** link in the
@@ -75,7 +103,8 @@ header returns to the overview.
 
 ## FastAPI endpoints
 
-Base URL: `http://127.0.0.1:8000`. There are **six application API operations**:
+Base URL: `http://127.0.0.1:8000`. Send `Authorization: Bearer <access-token>`
+with every application request. There are **six application API operations**:
 
 | Method | Path | Purpose | Request body |
 | --- | --- | --- | --- |
@@ -228,6 +257,9 @@ Categories without a budget have `null` for `budget` and `remaining`. A negative
 ### Validation and errors
 
 - `400 Bad Request`: invalid query values, such as a month outside `YYYY-MM`.
+- `401 Unauthorized`: missing or invalid access token.
+- `403 Forbidden`: access token lacks the required scope.
+- `503 Service Unavailable`: Auth0 configuration is missing or invalid.
 - `422 Unprocessable Entity`: a missing required field, invalid request body,
 	invalid path parameter, or missing required query parameter. Pydantic errors
 	include a `detail` list identifying the problematic field.
@@ -235,18 +267,21 @@ Categories without a budget have `null` for `budget` and `remaining`. A negative
 
 ### Try the API in Postman
 
-1. Start the API with `uv run uvicorn tracker.api.app:app --host 127.0.0.1 --port 8000`.
+1. Configure Auth0 as above and start the API with `uv run uvicorn tracker.api.app:app --host 127.0.0.1 --port 8000`.
 2. Open Postman and create a new HTTP request. Set the method and URL from the
 	 endpoint examples above, using `http://127.0.0.1:8000` as the base URL.
-3. For `POST /api/expenses`, `PUT /api/expenses/{expense_id}`, and `PUT /api/budgets`, select **Body > raw > JSON**,
+3. Obtain a delegated user access token for this API using an OAuth client,
+   and configure Postman's Bearer Token authorization. Do not use an ID token
+   or an Auth0 machine-to-machine test token.
+4. For `POST /api/expenses`, `PUT /api/expenses/{expense_id}`, and `PUT /api/budgets`, select **Body > raw > JSON**,
 	 paste the matching JSON example, and send it. Postman should set
 	 `Content-Type: application/json`; add that header if it does not.
-4. For `GET` requests, use the **Params** tab to add `month` and, for listing
+5. For `GET` requests, use the **Params** tab to add `month` and, for listing
 	 expenses, optionally `category`. `DELETE` uses an ID in the URL and no body.
-5. Select **Send** and inspect the response status and JSON body. Try the budget,
+6. Select **Send** and inspect the response status and JSON body. Try the budget,
 	 add, list, and summary requests before deleting the expense.
 
-Postman requests change the same database used by the web app and MCP server.
+Postman requests change the same database used by the web app.
 To experiment without touching existing records, stop the API and start it in a
 PowerShell session with a separate database path:
 
@@ -257,67 +292,20 @@ uv run uvicorn tracker.api.app:app --host 127.0.0.1 --port 8000
 
 ## MCP server
 
-To start the server directly, run `uv run python -m tracker.mcp_server.server`. It communicates over
-standard input/output and waits for an MCP client, so it is not a web page.
-Stop it with Ctrl+C. Normally, configure the client to start it for you instead.
-
-## Connect in VS Code
-
-Create `.vscode/mcp.json` in this project with the configuration below. Change
-the directory if the project moves, and make sure `uv` is on VS Code's PATH.
-
-```json
-{
-	"servers": {
-		"expense-tracker": {
-			"type": "stdio",
-			"command": "uv",
-			"args": [
-				"--directory",
-				"C:\\Users\\Sunny\\MCP_Projects\\Personal_expense_and_budget_tracker",
-				"run",
-				"python",
-				"-m",
-				"tracker.mcp_server.server"
-			]
-		}
-	}
-}
-```
-
-Start the server from VS Code's MCP server controls and enable its tools in your
-MCP-capable chat. For example, ask: "Set my food budget for November 2026 to
-200.00, record a 12.50 food expense on 2026-11-17, and show my monthly summary."
-Review tool calls before allowing changes or deletion. Expense editing is
-available in the web app and HTTP API, but not through the current MCP tools.
-
-## Available tools
-
-- `add_expense(amount, category, expense_date, description)` records an expense.
-	`amount` is a string such as `"12.50"`; the date defaults to today.
-- `list_expenses(month, category)` lists expenses, optionally filtered by month
-	(`YYYY-MM`) and/or category.
-- `delete_expense(expense_id)` removes an expense by ID and reports whether it existed.
-- `set_budget(month, category, amount)` creates or replaces a monthly category budget.
-- `monthly_summary(month)` shows total spending, category budgets, remaining
-	amounts, and whether a category is over budget. Negative remaining means overspent.
-
-Dates use `YYYY-MM-DD`; months use `YYYY-MM`. Amounts must be positive with at
-most two decimal places. Categories are trimmed and normalized to lowercase
-using Unicode case folding. The web app displays amounts as Indian rupees (INR).
-Existing values are not converted; the server does not convert or track currencies.
+The former unauthenticated stdio server is disabled. Both `main.py` and
+`python -m tracker.mcp_server.server` exit with an error; remove or disable any
+existing VS Code MCP configuration until authenticated MCP is implemented.
 
 ## Storage and design
 
-By default, the database is stored at `~/.expense-tracker/expenses.db`. Set
-`EXPENSE_TRACKER_DB` to an absolute file path in the MCP server configuration's
-`env` object to use a different location. The server creates the directory and
-tables as needed. Back up this file to preserve your records; it is not encrypted.
-Only connect trusted MCP clients: they can read, add, and delete your financial data.
+The authenticated database defaults to `~/.expense-tracker/authenticated.db`.
+Set `EXPENSE_TRACKER_DB` in the API process to use another path. The previous
+`~/.expense-tracker/expenses.db` is untouched and its unowned data is not
+automatically assigned to users. Pointing the app at a legacy schema fails
+closed. Back up both files; SQLite files are not encrypted, and authentication
+does not protect them from someone with direct filesystem access.
 
 SQLite needs no separate database service and persists data across server runs.
 Amounts are converted from decimal strings to integer cents so calculations do
-not have floating-point rounding errors. FastMCP exposes the Python functions
-as discoverable MCP tools. The direct dependency is restricted to FastMCP 2.x;
-its required MCP protocol SDK is installed automatically as a dependency.
-Tests use a temporary database and include a real stdio MCP client/server round trip.
+not have floating-point rounding errors. API queries use the verified issuer and
+subject to isolate each user's expenses and budgets. Tests use temporary databases.

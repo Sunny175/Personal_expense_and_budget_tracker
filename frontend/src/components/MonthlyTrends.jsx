@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { request } from '../api/client'
+import { useRequest } from '../api/client'
 import { money, monthLabel, trendMonths } from '../utils/format'
 
 export default function MonthlyTrends({ month, revision }) {
+  const request = useRequest()
   const [state, setState] = useState({ loading: true, data: [], error: '' })
   useEffect(() => {
     let active = true
@@ -12,7 +13,7 @@ export default function MonthlyTrends({ month, revision }) {
       .then((data) => { if (active) setState({ loading: false, data, error: '' }) })
       .catch((error) => { if (active) setState({ loading: false, data: [], error: error.message }) })
     return () => { active = false }
-  }, [month, revision])
+  }, [month, revision, request])
   const max = Math.max(0, ...state.data.map((item) => Number(item.total_spent)))
   return <section className="trend-section">
     <div className="section-heading"><div><span className="section-index">04 / OVER TIME</span><h2>Monthly spending</h2><p className="section-subtitle">Six months ending {monthLabel(month)}</p></div></div>

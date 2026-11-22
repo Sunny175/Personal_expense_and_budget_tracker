@@ -56,7 +56,7 @@ def validate_expense_date(expense_date: str) -> str:
     return expense_date
 
 
-def add_expense(amount: str, category: str, expense_date: str = "", description: str = "") -> dict:
+def add_expense(amount: str, category: str, expense_date: str = "", description: str = "", *, owner: str) -> dict:
     """Record an expense. Amount is a decimal string; date is YYYY-MM-DD (default: today)."""
     cents = parse_amount(amount)
     category = validate_category(category)
@@ -64,54 +64,54 @@ def add_expense(amount: str, category: str, expense_date: str = "", description:
         expense_date = validate_expense_date(expense_date)
     else:
         expense_date = date.today().isoformat()
-    expense_id = repository.insert_expense(expense_date, category, cents, description.strip())
+    expense_id = repository.insert_expense(owner, expense_date, category, cents, description.strip())
     return {"id": expense_id, "date": expense_date, "category": category,
             "amount": format_amount(cents), "description": description.strip()}
 
 
-def list_expenses(month: str = "", category: str = "") -> list[dict]:
+def list_expenses(month: str = "", category: str = "", *, owner: str) -> list[dict]:
     """List expenses, optionally filtered by YYYY-MM and category."""
     if month:
         month = validate_month(month)
     if category:
         category = validate_category(category)
-    rows = repository.get_expenses(month, category)
+    rows = repository.get_expenses(owner, month, category)
     return [{"id": row["id"], "date": row["expense_date"], "category": row["category"],
              "amount": format_amount(row["amount_cents"]), "description": row["description"]}
             for row in rows]
 
 
-def delete_expense(expense_id: int) -> dict:
+def delete_expense(expense_id: int, *, owner: str) -> dict:
     """Delete an expense by its ID."""
-    return {"id": expense_id, "deleted": repository.remove_expense(expense_id)}
+    return {"id": expense_id, "deleted": repository.remove_expense(owner, expense_id)}
 
 
-def update_expense(expense_id: int, amount: str, category: str, expense_date: str, description: str = "") -> dict | None:
+def update_expense(expense_id: int, amount: str, category: str, expense_date: str, description: str = "", *, owner: str) -> dict | None:
     """Replace an existing expense, or return None if its ID does not exist."""
     cents = parse_amount(amount)
     category = validate_category(category)
     expense_date = validate_expense_date(expense_date)
     description = description.strip()
-    updated = repository.replace_expense(expense_id, expense_date, category, cents, description)
+    updated = repository.replace_expense(owner, expense_id, expense_date, category, cents, description)
     if not updated:
         return None
     return {"id": expense_id, "date": expense_date, "category": category,
             "amount": format_amount(cents), "description": description}
 
 
-def set_budget(month: str, category: str, amount: str) -> dict:
+def set_budget(month: str, category: str, amount: str, *, owner: str) -> dict:
     """Set or replace a category budget for a month (YYYY-MM)."""
     month = validate_month(month)
     category = validate_category(category)
     cents = parse_amount(amount)
-    repository.upsert_budget(month, category, cents)
+    repository.upsert_budget(owner, month, category, cents)
     return {"month": month, "category": category, "amount": format_amount(cents)}
 
 
-def monthly_summary(month: str) -> dict:
+def monthly_summary(month: str, *, owner: str) -> dict:
     """Summarize spending and category budgets for a month (YYYY-MM)."""
     month = validate_month(month)
-    spending, budgets = repository.get_monthly_totals(month)
+    spending, budgets = repository.get_monthly_totals(owner, month)
     categories = {}
     for row in budgets:
         categories[row["category"].lower()] = {"category": row["category"], "budget": row["amount_cents"], "spent": 0}

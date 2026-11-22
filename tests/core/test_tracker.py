@@ -16,30 +16,30 @@ class TrackerTests(unittest.TestCase):
         self.addCleanup(environment.stop)
 
     def test_expenses_budgets_and_deletion(self):
-        tracker.set_budget("2026-11", "Food", "100.00")
-        tracker.set_budget("2026-11", "FOOD", "50.00")
-        expense = tracker.add_expense("12.34", "Food", "2026-11-01", "Lunch")
-        tracker.add_expense("40.00", "FOOD", "2026-11-02")
-        tracker.add_expense("10.00", "Travel", "2026-10-01")
-        self.assertEqual(len(tracker.list_expenses("2026-11", "FOOD")), 2)
-        summary = tracker.monthly_summary("2026-11")
+        tracker.set_budget("2026-11", "Food", "100.00", owner="alice")
+        tracker.set_budget("2026-11", "FOOD", "50.00", owner="alice")
+        expense = tracker.add_expense("12.34", "Food", "2026-11-01", "Lunch", owner="alice")
+        tracker.add_expense("40.00", "FOOD", "2026-11-02", owner="alice")
+        tracker.add_expense("10.00", "Travel", "2026-10-01", owner="alice")
+        self.assertEqual(len(tracker.list_expenses("2026-11", "FOOD", owner="alice")), 2)
+        summary = tracker.monthly_summary("2026-11", owner="alice")
         self.assertEqual(summary["total_spent"], "52.34")
         self.assertEqual(summary["categories"], [{"category": "food", "spent": "52.34", "budget": "50.00", "remaining": "-2.34", "over_budget": True}])
-        self.assertTrue(tracker.delete_expense(expense["id"])["deleted"])
-        self.assertFalse(tracker.delete_expense(expense["id"])["deleted"])
-        self.assertEqual(tracker.monthly_summary("2026-11")["total_spent"], "40.00")
+        self.assertTrue(tracker.delete_expense(expense["id"], owner="alice")["deleted"])
+        self.assertFalse(tracker.delete_expense(expense["id"], owner="alice")["deleted"])
+        self.assertEqual(tracker.monthly_summary("2026-11", owner="alice")["total_spent"], "40.00")
 
     def test_validation(self):
         for amount in ("0", "-1", "1.001", "NaN", "1e1000000", "abc"):
             with self.subTest(amount=amount), self.assertRaises(ValueError):
-                tracker.add_expense(amount, "food")
+                tracker.add_expense(amount, "food", owner="alice")
         for month in ("2026-13", "2026-1", "0000-01"):
             with self.subTest(month=month), self.assertRaises(ValueError):
-                tracker.monthly_summary(month)
+                tracker.monthly_summary(month, owner="alice")
         with self.assertRaises(ValueError):
-            tracker.add_expense("1.00", "food", "2026-02-30")
+            tracker.add_expense("1.00", "food", "2026-02-30", owner="alice")
         with self.assertRaises(ValueError):
-            tracker.set_budget("2026-11", "   ", "5")
+            tracker.set_budget("2026-11", "   ", "5", owner="alice")
 
 
 if __name__ == "__main__":
