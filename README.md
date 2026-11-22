@@ -1,4 +1,4 @@
-# Personal Expense and Budget Tracker
+# Expense & Budget Tracker
 
 A local expense and budget tracker with a React frontend, a FastAPI backend,
 and a standalone FastMCP 2.x server. Both Python servers use the same SQLite
@@ -6,10 +6,8 @@ database. The web app displays amounts in Indian rupees (INR).
 
 ## Project flow
 
-![Personal Expense and Budget Tracker project flow](docs/assets/project-flow.png)
-
-The diagram is a high-level overview. The web app can also edit expenses and
-show six months of spending trends using the monthly summary API.
+See the [architecture guide](docs/architecture.md) for the current flow chart,
+project layout, and data flow.
 
 ## Project structure
 
@@ -18,7 +16,9 @@ show six months of spending trends using the monthly summary API.
 - `tracker/api/`: FastAPI application and HTTP input validation.
 - `tracker/mcp_server/`: standalone MCP server and tool registration.
 - `frontend/src/`: React pages, reusable components, and HTTP helpers.
+- `frontend/tests/`: frontend trend tests.
 - `tests/`: API, tracker, and MCP integration tests.
+- `docs/`: architecture guide and the original flow chart.
 
 The API and MCP server are separate entry points that share the same core and
 SQLite database. The original `api.py` and `main.py` entry points remain
@@ -26,11 +26,13 @@ available for existing configurations.
 
 ## Set up with UV
 
-Prerequisites: [UV](https://docs.astral.sh/uv/getting-started/installation/)
-and Python 3.12 or newer. In PowerShell, from the project directory:
+Prerequisites: [UV](https://docs.astral.sh/uv/getting-started/installation/),
+Python 3.12 or newer, and Node.js 20.19+ or 22.12+. In PowerShell, from the
+project directory:
 
 ```powershell
 uv sync
+npm --prefix frontend install
 uv run python -m unittest discover -s tests -v
 npm --prefix frontend test
 ```
@@ -68,7 +70,8 @@ The API documentation is available at `http://127.0.0.1:8000/docs`. This is a
 local app without authentication; do not expose the API publicly.
 Use the edit action beside a transaction to change its details. The overview's
 monthly spending chart shows the selected month and the preceding five months;
-months without expenses are shown as zero.
+months without expenses are shown as zero. The **Your Workspace** link in the
+header returns to the overview.
 
 ## FastAPI endpoints
 
@@ -152,6 +155,7 @@ result is `[]`. For the example expense, the response is `200 OK`:
 }
 ```
 
+An omitted `description` replaces the existing description with an empty string.
 The response has the same shape as the add-expense response and retains the
 original ID. An unknown ID returns `404`; invalid or missing fields return `422`.
 Changing the date can move the expense to another month's summary.
@@ -200,7 +204,7 @@ replaces its previous budget. The response is `200 OK`:
 `GET /api/summary?month=2026-11`
 
 The `month` query parameter is required. After creating the example expense
-and budget above, and before deleting the expense, the response is `200 OK`:
+and budget above, without editing or deleting the expense, the response is `200 OK`:
 
 ```json
 {
@@ -227,7 +231,7 @@ Categories without a budget have `null` for `budget` and `remaining`. A negative
 - `422 Unprocessable Entity`: a missing required field, invalid request body,
 	invalid path parameter, or missing required query parameter. Pydantic errors
 	include a `detail` list identifying the problematic field.
-- `404 Not Found`: the expense ID supplied to `DELETE` does not exist.
+- `404 Not Found`: the expense ID supplied to `PUT` or `DELETE` does not exist.
 
 ### Try the API in Postman
 
@@ -284,7 +288,8 @@ the directory if the project moves, and make sure `uv` is on VS Code's PATH.
 Start the server from VS Code's MCP server controls and enable its tools in your
 MCP-capable chat. For example, ask: "Set my food budget for November 2026 to
 200.00, record a 12.50 food expense on 2026-11-17, and show my monthly summary."
-Review tool calls before allowing changes or deletion.
+Review tool calls before allowing changes or deletion. Expense editing is
+available in the web app and HTTP API, but not through the current MCP tools.
 
 ## Available tools
 

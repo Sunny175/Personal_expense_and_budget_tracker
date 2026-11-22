@@ -32,6 +32,12 @@ export default function App() {
   useEffect(() => { if (notice) { const timer = setTimeout(() => setNotice(''), 3500); return () => clearTimeout(timer) } }, [notice])
   function showBudget(value = '') { setCategory(value); setEditingExpense(null); setModal('budget') }
   function showExpense(expense = null) { setEditingExpense(expense); setCategory(''); setModal('expense') }
+  function showOverview(event) {
+    if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault()
+      setView('overview')
+    }
+  }
   function saved(message) { setModal(null); setNotice(message); setRevision((value) => value + 1) }
   async function remove(expense) {
     if (!window.confirm(`Delete ${expense.description || expense.category} (${money(expense.amount)})?`)) return
@@ -39,8 +45,8 @@ export default function App() {
   }
   const nav = [{ id: 'overview', label: 'Overview', icon: Grid2X2 }, { id: 'transactions', label: 'Transactions', icon: CreditCard }, { id: 'budgets', label: 'Budgets', icon: WalletCards }]
   return <div className="app-shell">
-    <aside className="sidebar"><div className="brand"><div className="brand-mark"><span /><span /><span /></div><span>tally<span className="brand-period">.</span></span></div><div className="workspace-label">PERSONAL FINANCE</div><nav aria-label="Main navigation">{nav.map(({ id, label, icon: Icon }) => <button key={id} className={`nav-item ${view === id ? 'active' : ''}`} onClick={() => setView(id)}><Icon size={18} strokeWidth={1.7} />{label}{view === id && <span className="nav-dot" />}</button>)}</nav><div className="sidebar-bottom"><div className="side-symbol"><IndianRupee size={17} /></div><div><strong>All in one place.</strong><span>Your money, made clearer.</span></div></div></aside>
-    <main className="main"><header className="topbar"><div className="breadcrumb"><span>YOUR WORKSPACE</span><span className="slash">/</span><strong>{title(view)}</strong></div><div className="top-right"><span className="local-indicator"><span /> LOCAL WORKSPACE</span><div className="avatar">T</div></div></header>
+    <aside className="sidebar"><div className="brand"><div className="brand-mark"><span /><span /><span /></div><span>Expense &amp;<br />Budget Tracker<span className="brand-period">.</span></span></div><div className="workspace-label">PERSONAL FINANCE</div><nav aria-label="Main navigation">{nav.map(({ id, label, icon: Icon }) => <button key={id} className={`nav-item ${view === id ? 'active' : ''}`} onClick={() => setView(id)}><Icon size={18} strokeWidth={1.7} />{label}{view === id && <span className="nav-dot" />}</button>)}</nav><div className="sidebar-bottom"><div className="side-symbol"><IndianRupee size={17} /></div><div><strong>All in one place.</strong><span>Your money, made clearer.</span></div></div></aside>
+    <main className="main"><header className="topbar"><div className="breadcrumb"><a href={import.meta.env.BASE_URL} onClick={showOverview} aria-label="Go to overview">YOUR WORKSPACE</a><span className="slash">/</span><strong>{title(view)}</strong></div><div className="top-right"><span className="local-indicator"><span /> LOCAL WORKSPACE</span><div className="avatar">E</div></div></header>
       <div className="content"><div className="page-heading"><div><div className="heading-kicker"><span className="mini-line" /> THE LITTLE PICTURE, CLEARER</div><h1>{view === 'overview' ? 'Your overview' : view === 'transactions' ? 'Transactions' : 'Your budgets'}<span className="heading-dot">.</span></h1><p>{view === 'overview' ? 'A thoughtful look at where your money goes.' : view === 'transactions' ? 'All your spending, in one place.' : 'Make room for what matters.'}</p></div><button className="button primary add-button" onClick={() => showExpense()}><Plus size={17} /> Add expense</button></div>
       <div className="month-bar"><div className="month-title"><CalendarDays size={16} /><span>{monthLabel(month)}</span></div><div className="month-controls"><button className="icon-button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" title="Previous month"><ArrowLeft size={17} /></button><button className="icon-button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" title="Next month"><ArrowRight size={17} /></button></div></div>
       {error && <div className="alert" role="alert">{error} <button onClick={() => setRevision((value) => value + 1)}>Try again</button></div>}
