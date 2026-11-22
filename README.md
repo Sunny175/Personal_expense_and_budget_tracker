@@ -4,6 +4,10 @@ A local expense and budget tracker with a React frontend, a FastAPI backend,
 and a standalone FastMCP 2.x server. Both Python servers use the same SQLite
 database. The web app displays amounts in Indian rupees (INR).
 
+## Project flow
+
+![Personal Expense and Budget Tracker project flow](docs/assets/project-flow.png)
+
 ## Set up with UV
 
 Prerequisites: [UV](https://docs.astral.sh/uv/getting-started/installation/)
