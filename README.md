@@ -8,6 +8,22 @@ database. The web app displays amounts in Indian rupees (INR).
 
 ![Personal Expense and Budget Tracker project flow](docs/assets/project-flow.png)
 
+The diagram is a high-level overview. The web app can also edit expenses and
+show six months of spending trends using the monthly summary API.
+
+## Project structure
+
+- `tracker/core/`: shared validation and expense and budget operations.
+- `tracker/storage/`: SQLite connection and queries.
+- `tracker/api/`: FastAPI application and HTTP input validation.
+- `tracker/mcp_server/`: standalone MCP server and tool registration.
+- `frontend/src/`: React pages, reusable components, and HTTP helpers.
+- `tests/`: API, tracker, and MCP integration tests.
+
+The API and MCP server are separate entry points that share the same core and
+SQLite database. The original `api.py` and `main.py` entry points remain
+available for existing configurations.
+
 ## Set up with UV
 
 Prerequisites: [UV](https://docs.astral.sh/uv/getting-started/installation/)
@@ -16,6 +32,7 @@ and Python 3.12 or newer. In PowerShell, from the project directory:
 ```powershell
 uv sync
 uv run python -m unittest discover -s tests -v
+npm --prefix frontend test
 ```
 
 `uv sync` creates and manages `.venv` and installs the dependencies recorded in
@@ -35,7 +52,7 @@ Run the API from the project directory:
 
 ```powershell
 uv sync
-uv run uvicorn api:app --host 127.0.0.1 --port 8000
+uv run uvicorn tracker.api.app:app --host 127.0.0.1 --port 8000
 ```
 
 In a second terminal, start the frontend:
@@ -49,15 +66,19 @@ Open the URL printed by Vite (normally `http://localhost:5173`). During
 development Vite forwards `/api` requests to `http://127.0.0.1:8000`.
 The API documentation is available at `http://127.0.0.1:8000/docs`. This is a
 local app without authentication; do not expose the API publicly.
+Use the edit action beside a transaction to change its details. The overview's
+monthly spending chart shows the selected month and the preceding five months;
+months without expenses are shown as zero.
 
 ## FastAPI endpoints
 
-Base URL: `http://127.0.0.1:8000`. There are **five application API operations**:
+Base URL: `http://127.0.0.1:8000`. There are **six application API operations**:
 
 | Method | Path | Purpose | Request body |
 | --- | --- | --- | --- |
 | `GET` | `/api/expenses` | List expenses, with optional filters | None |
 | `POST` | `/api/expenses` | Add an expense | JSON expense |
+| `PUT` | `/api/expenses/{expense_id}` | Replace an expense by ID | JSON expense with date |
 | `DELETE` | `/api/expenses/{expense_id}` | Delete an expense by ID | None |
 | `PUT` | `/api/budgets` | Create or replace a monthly category budget | JSON budget |
 | `GET` | `/api/summary` | Get a monthly spending and budget summary | None |
@@ -116,6 +137,24 @@ result is `[]`. For the example expense, the response is `200 OK`:
 	}
 ]
 ```
+
+### Edit an expense
+
+`PUT /api/expenses/1` replaces an existing expense. Provide `amount`,
+`category`, and `expense_date`; `description` is optional. For example:
+
+```json
+{
+	"amount": "175.00",
+	"category": "Transport",
+	"expense_date": "2026-11-19",
+	"description": "Train"
+}
+```
+
+The response has the same shape as the add-expense response and retains the
+original ID. An unknown ID returns `404`; invalid or missing fields return `422`.
+Changing the date can move the expense to another month's summary.
 
 ### 3. Delete an expense
 
@@ -192,10 +231,10 @@ Categories without a budget have `null` for `budget` and `remaining`. A negative
 
 ### Try the API in Postman
 
-1. Start the API with `uv run uvicorn api:app --host 127.0.0.1 --port 8000`.
+1. Start the API with `uv run uvicorn tracker.api.app:app --host 127.0.0.1 --port 8000`.
 2. Open Postman and create a new HTTP request. Set the method and URL from the
 	 endpoint examples above, using `http://127.0.0.1:8000` as the base URL.
-3. For `POST /api/expenses` and `PUT /api/budgets`, select **Body > raw > JSON**,
+3. For `POST /api/expenses`, `PUT /api/expenses/{expense_id}`, and `PUT /api/budgets`, select **Body > raw > JSON**,
 	 paste the matching JSON example, and send it. Postman should set
 	 `Content-Type: application/json`; add that header if it does not.
 4. For `GET` requests, use the **Params** tab to add `month` and, for listing
@@ -209,12 +248,12 @@ PowerShell session with a separate database path:
 
 ```powershell
 $env:EXPENSE_TRACKER_DB = "$env:TEMP\expense-tracker-postman.db"
-uv run uvicorn api:app --host 127.0.0.1 --port 8000
+uv run uvicorn tracker.api.app:app --host 127.0.0.1 --port 8000
 ```
 
 ## MCP server
 
-To start the server directly, run `uv run python main.py`. It communicates over
+To start the server directly, run `uv run python -m tracker.mcp_server.server`. It communicates over
 standard input/output and waits for an MCP client, so it is not a web page.
 Stop it with Ctrl+C. Normally, configure the client to start it for you instead.
 
@@ -234,7 +273,8 @@ the directory if the project moves, and make sure `uv` is on VS Code's PATH.
 				"C:\\Users\\Sunny\\MCP_Projects\\Personal_expense_and_budget_tracker",
 				"run",
 				"python",
-				"main.py"
+				"-m",
+				"tracker.mcp_server.server"
 			]
 		}
 	}

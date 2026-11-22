@@ -37,7 +37,7 @@ class ApiTests(unittest.TestCase):
     def test_openapi_documents_all_operations(self):
         paths = self.client.get("/openapi.json").json()["paths"]
         operations = [(path, method, operation) for path, methods in paths.items() for method, operation in methods.items()]
-        self.assertEqual(len(operations), 5)
+        self.assertEqual(len(operations), 6)
         for path, method, operation in operations:
             with self.subTest(path=path, method=method):
                 self.assertTrue(operation.get("description"))
@@ -49,6 +49,34 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.json()["detail"][0]["loc"], ["body", "amount"])
         self.assertEqual(self.client.post("/api/expenses", json={"amount": "1.00", "category": "Food", "expense_date": "2026-02-30"}).status_code, 422)
         self.assertEqual(self.client.put("/api/budgets", json={"amount": "10", "category": " ", "month": "bad"}).status_code, 422)
+
+    def test_edit_expense_moves_it_between_months(self):
+        created = self.client.post("/api/expenses", json={"amount": "12.34", "category": "Food", "expense_date": "2026-10-01"}).json()
+        expense_id = created["id"]
+        response = self.client.put(f"/api/expenses/{expense_id}", json={
+            "amount": "45.67", "category": " Travel ", "expense_date": "2026-11-02", "description": " Train "
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"id": expense_id, "date": "2026-11-02", "category": "travel", "amount": "45.67", "description": "Train"})
+        self.assertEqual(self.client.get("/api/expenses", params={"month": "2026-10"}).json(), [])
+        self.assertEqual(self.client.get("/api/expenses", params={"month": "2026-11"}).json(), [response.json()])
+        self.assertEqual(self.client.get("/api/summary", params={"month": "2026-10"}).json()["total_spent"], "0.00")
+        self.assertEqual(self.client.get("/api/summary", params={"month": "2026-11"}).json()["total_spent"], "45.67")
+
+    def test_edit_expense_rejects_invalid_and_missing_values(self):
+        original = self.client.post("/api/expenses", json={"amount": "12.34", "category": "Food", "expense_date": "2026-10-01"}).json()
+        expense_id = original["id"]
+        for data in (
+            {"amount": "0", "category": "Food", "expense_date": "2026-10-01"},
+            {"amount": "12.34", "category": " ", "expense_date": "2026-10-01"},
+            {"amount": "12.34", "category": "Food", "expense_date": ""},
+            {"amount": "12.34", "category": "Food", "expense_date": "2026-02-30"},
+            {"amount": "12.34", "category": "Food"},
+        ):
+            with self.subTest(data=data):
+                self.assertEqual(self.client.put(f"/api/expenses/{expense_id}", json=data).status_code, 422)
+        self.assertEqual(self.client.get("/api/expenses").json(), [original])
+        self.assertEqual(self.client.put("/api/expenses/99999", json={"amount": "1.00", "category": "Food", "expense_date": "2026-10-01"}).status_code, 404)
 
 
 if __name__ == "__main__":
